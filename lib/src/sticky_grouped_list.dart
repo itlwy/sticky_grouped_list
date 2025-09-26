@@ -306,27 +306,30 @@ class StickyGroupedListViewState<T, E>
       if (widget.reverse) {
         return current.itemTrailingEdge > pos.itemTrailingEdge ? current : pos;
       }
-      return current.itemTrailingEdge < pos.itemTrailingEdge ? current : pos;
+      return current.itemLeadingEdge < pos.itemLeadingEdge ? current : pos;
     }
 
-    ItemPosition currentItem = _listener.itemPositions.value
+    // 获取所有可见的非分隔符项目
+    var visibleItems = _listener.itemPositions.value
         .where((ItemPosition position) =>
-            !_isSeparator!(position.index) &&
-            position.itemTrailingEdge > headerDimension!)
-        .reduce(reducePositions);
+            !_isSeparator!(position.index));
 
-    int index = currentItem.index ~/ 2;
-    if (_topElementIndex != index) {
-      if (_topElementIndex < sortedElements.length) {
+    if (visibleItems.isEmpty) return;
+
+    // 找到顶部项目 - 使用itemLeadingEdge而不是itemTrailingEdge
+    ItemPosition currentItem = visibleItems.reduce(reducePositions);
+
+    // 关键修改：只有当项目的顶部边缘接近或超过header位置时才切换
+    // 这样可以确保当前分组完全覆盖下一个分组的header后才切换
+    if (currentItem.itemLeadingEdge <= (headerDimension ?? 0) + 0.01) {
+      int index = currentItem.index ~/ 2;
+      if (_topElementIndex != index) {
         E curr = widget.groupBy(sortedElements[index]);
         E prev = widget.groupBy(sortedElements[_topElementIndex]);
         if (prev != curr) {
           _topElementIndex = index;
           _streamController.add(_topElementIndex);
         }
-      } else {
-        _topElementIndex = index;
-        _streamController.add(_topElementIndex);
       }
     }
   }
@@ -362,7 +365,7 @@ class StickyGroupedListViewState<T, E>
   }
 
   Widget _showFixedGroupHeader(int index) {
-    if (widget.elements.isNotEmpty && index < sortedElements.length) {
+    if (widget.elements.isNotEmpty) {
       _groupHeaderKey = GlobalKey();
       return Container(
         key: _groupHeaderKey,
